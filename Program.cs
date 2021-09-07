@@ -1,17 +1,74 @@
-﻿using System;
+﻿using Discord;
+using Discord.Commands;
+using Discord.WebSocket;
+using Newtonsoft.Json.Linq;
+using System;
+using System.IO;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace RandomFacts
 {
     class Program
-    {
-        static HttpClient client = new();
-                
-        static async Task GetRandomArticle()
+    {        
+        static void Main(string[] args) => new Program().RunAsync().GetAwaiter().GetResult();
+
+        private readonly HttpClient _http;
+        private readonly DiscordSocketClient _client;
+        private readonly CommandService _commands;
+
+        private Program()
         {
-            var response = await client.GetAsync(UriHelpers.WikiRandomUri);
+            _client = new DiscordSocketClient(new DiscordSocketConfig { LogLevel = LogSeverity.Info });
+
+            _commands = new CommandService(new CommandServiceConfig { LogLevel = LogSeverity.Info, CaseSensitiveCommands = false });
+
+            _http = new();
+            _http.DefaultRequestHeaders.Accept.Clear();
+            _http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+            _client.Log += Log;
+            _commands.Log += Log;
+        }
+
+        public async Task RunAsync()
+        {                                                          
+            await _client.LoginAsync(TokenType.Bot, Environment.GetEnvironmentVariable("BotToken", EnvironmentVariableTarget.Machine));
+            await _client.StartAsync();
+
+            await Task.Delay(-1);                       
+        }
+
+        private Task Log(LogMessage msg)
+        {
+            switch (msg.Severity)
+            {
+                case LogSeverity.Critical:
+                case LogSeverity.Error:
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    break;
+                case LogSeverity.Warning:
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    break;
+                case LogSeverity.Info:
+                    Console.ForegroundColor = ConsoleColor.White;
+                    break;
+                case LogSeverity.Verbose:
+                case LogSeverity.Debug:
+                    Console.ForegroundColor = ConsoleColor.DarkGray;
+                    break;
+            }
+            Console.WriteLine($"{DateTime.Now,-19} [{msg.Severity,8}] {msg.Source}: {msg.Message} {msg.Exception}");
+            Console.ResetColor();
+            
+            return Task.CompletedTask;
+        }        
+
+        public async Task GetRandomArticle()
+        {
+            var response = await _http.GetAsync(UriHelpers.WikiRandomUri);
             if (response.IsSuccessStatusCode)
             {
                 Console.WriteLine($"Success: {response.StatusCode}");
@@ -25,14 +82,14 @@ namespace RandomFacts
             }
         }
 
-        static async Task<string> GetFactFromArticle(string title)
+        public async Task<string> GetFactFromArticle(string title)
         {
-            var response = await client.GetAsync(UriHelpers.WikiPHPRequestUri(title));
+            var response = await _http.GetAsync(UriHelpers.WikiPHPRequestUri(title));
             string jsonContent = await response.Content.ReadAsStringAsync();
 
             string fact = string.Empty;
             try
-            {                               
+            {
                 fact = StringHelpers.GetFactFromJson(jsonContent);
             }
             catch
@@ -41,34 +98,6 @@ namespace RandomFacts
             }
 
             return StringHelpers.SanitizeFact(fact);
-        }
-
-        static void Main()
-        {
-            RunAsync().GetAwaiter().GetResult();
-        }
-
-        static async Task RunAsync()
-        {            
-            client.DefaultRequestHeaders.Accept.Clear();
-            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-            while(true)
-            {
-                Console.Write("fact?: ");
-
-                var input = Console.ReadLine();
-
-                if (input == "y")
-                {
-                    Console.WriteLine();
-                    await GetRandomArticle();
-                    Console.WriteLine();
-                    continue;
-                }
-
-                break;
-            }            
         }
     }
 }
