@@ -7,7 +7,7 @@ namespace RandomFacts
 {
     class Program
     {
-        static HttpClient client = new HttpClient();
+        static HttpClient client = new();
                 
         static async Task GetRandomArticle()
         {
