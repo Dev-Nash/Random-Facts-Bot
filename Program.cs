@@ -43,7 +43,7 @@ namespace RandomFacts
         {
             await InitCommands();
 
-            await _client.LoginAsync(TokenType.Bot, Environment.GetEnvironmentVariable("DISCORD_TOKEN", EnvironmentVariableTarget.Machine));
+            await _client.LoginAsync(TokenType.Bot, Environment.GetEnvironmentVariable("DISCORD_TOKEN"));
             await _client.StartAsync();
 
             await Task.Delay(Timeout.Infinite);
