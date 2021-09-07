@@ -17,7 +17,7 @@ namespace RandomFacts.CommandModules
         {
             
 
-            await ReplyAsync("Placeholder help message!");
+            await ReplyAsync("Type \"!fact\" without the quotes to get a random fact!");
         }
     }
 }
