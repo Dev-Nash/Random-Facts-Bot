@@ -1,12 +1,15 @@
 ﻿using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
+using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json.Linq;
 using System;
 using System.IO;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Reflection;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace RandomFacts
@@ -18,6 +21,7 @@ namespace RandomFacts
         private readonly HttpClient _http;
         private readonly DiscordSocketClient _client;
         private readonly CommandService _commands;
+        private readonly IServiceProvider _services;
 
         private Program()
         {
@@ -31,14 +35,54 @@ namespace RandomFacts
 
             _client.Log += Log;
             _commands.Log += Log;
+
+            _services = ConfigureServices();
         }
 
         public async Task RunAsync()
-        {                                                          
-            await _client.LoginAsync(TokenType.Bot, Environment.GetEnvironmentVariable("BotToken", EnvironmentVariableTarget.Machine));
+        {
+            await InitCommands();
+
+            await _client.LoginAsync(TokenType.Bot, Environment.GetEnvironmentVariable("DISCORD_TOKEN", EnvironmentVariableTarget.Machine));
             await _client.StartAsync();
 
-            await Task.Delay(-1);                       
+            await Task.Delay(Timeout.Infinite);
+        }
+
+        private IServiceProvider ConfigureServices()
+        {
+            var map = new ServiceCollection()
+                .AddSingleton(_http)
+                .AddSingleton(_client)
+                .AddSingleton(_commands);
+            //Can add services here with .AddSingleton(new SomeService())
+            return map.BuildServiceProvider();
+        }
+
+        private async Task InitCommands()
+        {
+            await _commands.AddModulesAsync(Assembly.GetEntryAssembly(), _services);
+
+            _client.MessageReceived += HandleCommandAsync;
+        }
+
+        private async Task HandleCommandAsync(SocketMessage arg)
+        {
+            var msg = arg as SocketUserMessage;
+            
+            if (msg == null) return;
+            if (msg.Author.Id == _client.CurrentUser.Id || msg.Author.IsBot) return;
+
+            int pos = 0;
+            if (msg.HasCharPrefix('!', ref pos))
+            {
+                var context = new SocketCommandContext(_client, msg);
+                var result = await _commands.ExecuteAsync(context, pos, _services);
+
+                //Comment this out for release: debugging purposes only
+                if (!result.IsSuccess && result.Error != CommandError.UnknownCommand)
+                    await msg.Channel.SendMessageAsync(result.ErrorReason);
+            }
         }
 
         private Task Log(LogMessage msg)
@@ -65,39 +109,5 @@ namespace RandomFacts
             
             return Task.CompletedTask;
         }        
-
-        public async Task GetRandomArticle()
-        {
-            var response = await _http.GetAsync(UriHelpers.WikiRandomUri);
-            if (response.IsSuccessStatusCode)
-            {
-                Console.WriteLine($"Success: {response.StatusCode}");
-                Console.WriteLine($"Article: {response.RequestMessage.RequestUri}");
-                string fact = await GetFactFromArticle(UriHelpers.GetArticleTitleFromUri(response.RequestMessage.RequestUri));
-                Console.WriteLine($"Fact: {fact}");
-            }
-            else
-            {
-                Console.WriteLine($"Failed: {response.StatusCode}");
-            }
-        }
-
-        public async Task<string> GetFactFromArticle(string title)
-        {
-            var response = await _http.GetAsync(UriHelpers.WikiPHPRequestUri(title));
-            string jsonContent = await response.Content.ReadAsStringAsync();
-
-            string fact = string.Empty;
-            try
-            {
-                fact = StringHelpers.GetFactFromJson(jsonContent);
-            }
-            catch
-            {
-                Console.WriteLine("Something Broke! D:");
-            }
-
-            return StringHelpers.SanitizeFact(fact);
-        }
     }
 }

@@ -39,6 +39,9 @@ namespace RandomFacts
 
         private static string CheckForUnwantedChars(string fact)
         {
+            if (fact == null)
+                return fact;
+
             if (Encoding.UTF8.GetByteCount(fact) != fact.Length)
             {
                 return fact.Substring(0, fact.IndexOf('(')) + fact[(fact.IndexOf(')') + 1)..];
