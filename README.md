@@ -3,4 +3,4 @@ Random Fact bot for Discord. Uses Wikipedia for information.
 
 
 ## Link to Add:
-https://bit.ly/38x8h83
+bit.ly/38x8h83
