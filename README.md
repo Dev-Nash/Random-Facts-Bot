@@ -8,4 +8,5 @@ bit.ly/38x8h83
 
 ## Commands:
 !fact - Gives random fact.
+
 !help - Shows help message.
